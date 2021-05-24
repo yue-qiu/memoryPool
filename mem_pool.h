@@ -2,9 +2,9 @@
 
 #include <unistd.h>
 
-#define GB (1 << 30)
-#define MB (1 << 20)
-#define KB (1 << 10)
+#define G (size_t)(1 << 30)
+#define M (size_t)(1 << 20)
+#define K (size_t)(1 << 10)
 
 static const int CHUNKNUM = 21;
 
@@ -19,7 +19,7 @@ class MemPool {
         };
         Block* freeList[CHUNKNUM];
         Block* usedList;
-        void moveToUsedList(Block*, Block**);
+        void moveToUsedList(Block*, int);
         void moveToFreeList(Block*);
 
     public:

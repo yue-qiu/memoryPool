@@ -3,9 +3,9 @@
 
 #define GET_BLOCKSIZE(i) (size_t)(1 << ((i) + 1))
 
-#define MAX_FIXED_BLOCK_SIZE (1 * MB)
+#define MAX_FIXED_BLOCK_SIZE (1 * M)
 
-#define MIN_CACHE_SIZE 2097150
+#define MIN_CACHE_SIZE (2097150)
 
 
 MemPool::MemPool(size_t size) {
@@ -18,106 +18,146 @@ MemPool::MemPool(size_t size) {
 
     // 初始化 freeList
     for (int i = 0; i < CHUNKNUM-1; i++) {
-        this->freeList[i] = (Block*)malloc(initBlockNum * sizeof(Block));  // 为 freeList[i] 分配 initBlockNum 个 entry
-        Block* oldHead = this->freeList[i];
+        freeList[i] = (Block*)malloc(initBlockNum * sizeof(Block));  // 为 freeList[i] 分配 initBlockNum 个 entry
+        Block* oldHead = freeList[i];
         for (int j = 0; j < initBlockNum; j++) {  // 把 entry 组织为双向链表
             Block* tmp = oldHead + j;
             tmp->payload = mem;
             tmp->size = GET_BLOCKSIZE(i);
-            tmp->prev = NULL;
-            tmp->next = NULL;
+            tmp->prev = nullptr;
+            tmp->next = nullptr;
             mem += GET_BLOCKSIZE(i);
         
-            if (tmp != this->freeList[i]) {
-                tmp->next = this->freeList[i];
-                this->freeList[i]->prev = tmp;
-                this->freeList[i] = tmp;
+            if (tmp != freeList[i]) {
+                tmp->next = freeList[i];
+                freeList[i]->prev = tmp;
+                freeList[i] = tmp;
             }
         }
     }
 
-    this->usedList = NULL;
+    usedList = nullptr;
 }
 
 void* MemPool::Malloc(size_t size) {
     Block* tmp;
     if (size > MAX_FIXED_BLOCK_SIZE) {  // 请求大于最大固定块，在 freeList[CHUNKNUM] 里查找
-        tmp = this->freeList[CHUNKNUM-1];
-        while (tmp != NULL) {
+        tmp = freeList[CHUNKNUM-1];
+        while (tmp != nullptr) {
             if (size <= tmp->size) {  // 找到大小合适的块
-                this->moveToUsedList(tmp, &this->freeList[CHUNKNUM-1]);
+                moveToUsedList(tmp, CHUNKNUM-1);
                 return (void*)tmp->payload;
             }
 
             tmp = tmp->next;
         }
-        // freeList[CHUNKNUM] 找不到合适的空闲块，创建一个
+        // 创建一个自由大小块
         tmp = (Block*)malloc(sizeof(Block));
         tmp->payload = (char*)malloc(size);
         tmp->size = size;
-        tmp->prev = NULL;
-        tmp->next = NULL;
-        moveToUsedList(tmp, NULL);
+        tmp->prev = nullptr;
+        tmp->next = nullptr;
+        moveToUsedList(tmp, -1);
 
         return (void*)tmp->payload;
     }
 
     // 从固定空闲块里查找
     for (int i = 0; i < CHUNKNUM-1; i++) {
-        if (size <= GET_BLOCKSIZE(i)) {
-            tmp = this->freeList[i];
-            while (tmp != NULL) {  // 找到最小的符合请求的固定块
-                this->moveToUsedList(tmp, &this->freeList[i]);
+        if (size <= GET_BLOCKSIZE(i)) { // 最小的符合请求的空闲固定块
+            tmp = freeList[i];
+
+            // 当前大小的空闲固定块耗尽，尝试从更大的空闲固定块里窃取空间
+            if (tmp == nullptr) {
+                for (int j = CHUNKNUM-1; j > i; j--) {  // 向右查找最远的非空 freeList
+                    if (freeList[j] != nullptr) { 
+                        int newBlockNum = GET_BLOCKSIZE(j) / GET_BLOCKSIZE(i);  // 确定这次窃取可以为 freeList[i] 得到几个新的固定空闲块
+                        Block* mem = (Block*)malloc(newBlockNum * sizeof(Block));
+
+                        // 头插法把新固定空闲块放到 freeList[i]
+                        for (int k = 0; k < newBlockNum; k++) {
+                            mem->size = GET_BLOCKSIZE(i);
+                            mem->payload = freeList[j]->payload + mem->size * k;
+                            mem->prev = nullptr;
+                            mem->next = freeList[i];
+                            if (freeList[i] == nullptr) {
+                                freeList[i] = mem;
+                            } else {
+                                freeList[i]->prev = mem;
+                                freeList[i] = mem;
+                            }
+
+                            mem += 1;
+                        }
+
+                        // 被窃取的 freeList[j] 释放首结点 
+                        freeList[j] = freeList[j]->next;
+                        if (freeList[j] != nullptr) {
+                            freeList[j]->prev = nullptr;
+                        }
+
+                        // 现在 freeList[i] 非空了
+                        tmp = freeList[i];
+                        break;
+                    }
+                }
+            }
+
+            if (tmp != nullptr) {  
+                moveToUsedList(tmp, i);
                 return (void*)tmp->payload;
             }
-            // 找不到合适的空闲块，创建一个
+            
+
+
+            // 创建一个新的固定块
             tmp = (Block*)malloc(sizeof(Block));
             tmp->payload = (char*)malloc(GET_BLOCKSIZE(i));
             tmp->size = GET_BLOCKSIZE(i);
-            tmp->prev = NULL;
-            tmp->next = NULL;
-            moveToUsedList(tmp, NULL);
+            tmp->prev = nullptr;
+            tmp->next = nullptr;
+            moveToUsedList(tmp, -1);
 
             return (void*)tmp->payload;
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
 void MemPool::Free(void* ptr) {
-    Block* tmp = this->usedList;
-    while (tmp != NULL) {
+    Block* tmp = usedList;
+    while (tmp != nullptr) {
+        Block* tmpNext = tmp->next;
         if (tmp->payload == ptr) {
             moveToFreeList(tmp);
         }
-
-        tmp = tmp->next;
+        tmp = tmpNext;
     }
 }
 
 /*
 * 把 block 移动到 usedList。如果 block 是 freeList[i] 的首节点，还要修改 freeList[i] 
 **/
-void MemPool::moveToUsedList(Block* block, Block** freeListPtr) {
-    if (freeListPtr != NULL && block == *freeListPtr) {
-        *freeListPtr = (*freeListPtr)->next;
+void MemPool::moveToUsedList(Block* block, int freeListIdx) {
+    if (freeListIdx >= 0 && block == freeList[freeListIdx]) {
+        freeList[freeListIdx] = freeList[freeListIdx]->next;
     }
-    if (block->prev != NULL) {
+    if (block->prev != nullptr) {
         block->prev->next = block->next;
     }
-    if (block->next != NULL) {
+    if (block->next != nullptr) {
         block->next->prev = block->prev;
     }
-    block->prev = NULL;
-    block->next = NULL;
+    block->prev = nullptr;
+    block->next = nullptr;
 
-    if (this->usedList == NULL) {
-        this->usedList = block;
+    if (usedList == nullptr) {
+        usedList = block;
     } else {
-        block->next = this->usedList;
-        this->usedList->prev = block;
-        this->usedList = block;
+        block->next = usedList;
+        usedList->prev = block;
+        usedList = block;
     }
 }
 
@@ -126,37 +166,31 @@ void MemPool::moveToUsedList(Block* block, Block** freeListPtr) {
 *  把 usedList 的 block 移动到 freeList
 **/
 void MemPool::moveToFreeList(Block* block) {
-    if (block == this->usedList) {
-        this->usedList = NULL;
+    if (block == usedList) {
+        usedList = usedList->next;
     }
-    if (block->prev != NULL) {
+    if (block->prev != nullptr) {
         block->prev->next = block->next;
     }
-    if (block->next != NULL) {
+    if (block->next != nullptr) {
         block->next->prev = block->prev;
     }
-    block->prev = NULL;
-    block->next = NULL;
+    block->prev = nullptr;
+    block->next = nullptr;
 
-    for (int i = 0; i < CHUNKNUM; i++) {
-        if (i < CHUNKNUM-1) {
-            if (block->size <= GET_BLOCKSIZE(i)) {
-                if (this->freeList[i] == NULL) {
-                    this->freeList[i] = block;
-                } else {
-                    block->next = this->freeList[i];
-                    this->freeList[i]->prev = block;
-                    this->freeList[i] = block;
-                }
-            }
-        } else {
-            if (this->freeList[i] == NULL) {
-                this->freeList[i] = block;
-            } else {
-                block->next = this->freeList[i];
-                this->freeList[i]->prev = block;
-                this->freeList[i] = block;
-            }
+    int i = CHUNKNUM-1;
+    if (block->size <= MAX_FIXED_BLOCK_SIZE) {
+        i = 0;
+        while (GET_BLOCKSIZE(i) != block->size) {
+            ++i;
         }
+    }
+
+    if (freeList[i] != nullptr) {
+        block->next = freeList[i];
+        freeList[i]->prev = block;
+        freeList[i] = block;
+    } else {
+        freeList[i] = block;
     }
 }
