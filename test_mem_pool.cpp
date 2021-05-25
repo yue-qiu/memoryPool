@@ -8,7 +8,7 @@
 
 #define TESTCASE (2 * K)
 
-#define MAXDATASIZE (2 * M) 
+#define MAXDATASIZE ((3 * M) >> 1) 
 
 using namespace std;
 
@@ -23,7 +23,7 @@ void shuffle(void* mem[TESTCASE]) {
 }
 
 void test_pool() {
-    MemPool* pool = new MemPool(2 * G);
+    MemPool* pool = new MemPool(3 * G);
     void* mem[TESTCASE];
     clock_t startTime, endTime;
     startTime = clock();  //计时开始
@@ -32,14 +32,15 @@ void test_pool() {
         mem[i] = pool->Malloc(random(MAXDATASIZE));
     }
 
-    
+    fprintf(stdout, "Usage: %.2f\n", pool->Usage());
+
     shuffle(mem); // 模拟随机释放内存
     for (size_t i = 0; i < TESTCASE; i++) {
         pool->Free(mem[i]);
     }
 
     endTime = clock();  //计时结束
-    cout << "The run time with pool is: " << (double)(endTime - startTime) / CLOCKS_PER_SEC << "s" << endl;
+    fprintf(stdout, "The run time with malloc is: %fs\n", (double)(endTime - startTime) / CLOCKS_PER_SEC);  
 }
 
 void test_malloc() {
@@ -57,7 +58,7 @@ void test_malloc() {
     }
 
     endTime = clock();  //计时结束
-    cout << "The run time with malloc is: " << (double)(endTime - startTime) / CLOCKS_PER_SEC << "s" << endl;  
+    fprintf(stdout, "The run time with malloc is: %fs\n", (double)(endTime - startTime) / CLOCKS_PER_SEC);  
 }
 
 int main(int argc, char** argv) {
@@ -66,7 +67,7 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    fprintf(stdout, "testcase: %ld, max data size: %ld Bytes\n", TESTCASE, MAXDATASIZE);
+    fprintf(stdout, "testcase: %ld, max request size: %ld Bytes\n", TESTCASE, MAXDATASIZE);
     srand((int)time(0));
 
     if (strcmp(argv[1], "-test=pool") == 0) {
