@@ -24,7 +24,7 @@ $ ./test_mem_pool -test=pool    # 测试内存池的 Malloc 与 Free
 
 创建一个初始容量为 2G 的内存池，与原生 malloc/free 比较：
 
-| testcase | max request size | 内存池响应时间 | malloc/free 响应时间 | Usage |
+| Number of testcases | max request size | 内存池响应时间 | malloc/free 响应时间 | Usage |
 |  ----  | ----  | ---- | ---- | ---- |
 | 8k | 16k | 0.003988s | 0.016443s | 0.03 | 
 | 16k | 16k | 0.009377s | 0.038889s | 0.06 |

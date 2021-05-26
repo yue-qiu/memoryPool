@@ -7,13 +7,13 @@
 
 #define random(x) (rand() % (x))
 
-#define TESTCASE (8 * K)
+#define TESTCASESNUM (8 * K)
 
 #define MAXDATASIZE (512 * K) 
 
 // 洗牌算法打乱数组
-void shuffle(void* mem[TESTCASE]) {
-    for (int i = TESTCASE-1; i > 0; i--) {
+void shuffle(void* mem[TESTCASESNUM]) {
+    for (int i = TESTCASESNUM-1; i > 0; i--) {
         int randIdx = random(i);
         void* tmp = mem[randIdx];
         mem[randIdx] = mem[i];
@@ -23,18 +23,18 @@ void shuffle(void* mem[TESTCASE]) {
 
 void test_pool() {
     MemPool* pool = NewMemPool(2 * G);
-    void* mem[TESTCASE];
+    void* mem[TESTCASESNUM];
     clock_t startTime, endTime;
     startTime = clock();  //计时开始
 
-    for (size_t i = 0; i < TESTCASE; i++) {
+    for (size_t i = 0; i < TESTCASESNUM; i++) {
         mem[i] = Malloc(pool, random(MAXDATASIZE));
     }
 
     fprintf(stdout, "Usage: %.2f\n", Usage(pool));
 
     shuffle(mem); // 模拟随机释放内存
-    for (size_t i = 0; i < TESTCASE; i++) {
+    for (size_t i = 0; i < TESTCASESNUM; i++) {
         Free(pool, mem[i]);
     }
 
@@ -43,16 +43,16 @@ void test_pool() {
 }
 
 void test_malloc() {
-    void* mem[TESTCASE];
+    void* mem[TESTCASESNUM];
     clock_t startTime, endTime;
     startTime = clock();  //计时开始
 
-    for (size_t i = 0; i < TESTCASE; i++) {
+    for (size_t i = 0; i < TESTCASESNUM; i++) {
         mem[i] = malloc(random(MAXDATASIZE));
     }
 
     shuffle(mem);   // 模拟随机释放内存
-    for (size_t i = 0; i < TESTCASE; i++) {
+    for (size_t i = 0; i < TESTCASESNUM; i++) {
         free(mem[i]);
     }
 
@@ -66,7 +66,7 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    fprintf(stdout, "testcase: %ld, max request size: %ld Bytes\n", TESTCASE, MAXDATASIZE);
+    fprintf(stdout, "testcase: %ld, max request size: %ld Bytes\n", TESTCASESNUM, MAXDATASIZE);
     srand((int)time(0));
 
     if (strcmp(argv[1], "-test=pool") == 0) {
