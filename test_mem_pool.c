@@ -7,9 +7,9 @@
 
 #define random(x) (rand() % (x))
 
-#define TESTCASE (2 * K)
+#define TESTCASE (8 * K)
 
-#define MAXDATASIZE ((3 * M) >> 1) 
+#define MAXDATASIZE (512 * K) 
 
 // 洗牌算法打乱数组
 void shuffle(void* mem[TESTCASE]) {

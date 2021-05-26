@@ -1,8 +1,7 @@
 /**
  * C语言实现的红黑树(Red Black Tree)
  *
- * @author skywang
- * @date 2013/11/18
+ * @author skywang, rowanqiu
  */
 
 #include <stdio.h>
