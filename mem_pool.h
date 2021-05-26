@@ -1,6 +1,7 @@
 #pragma once
 
 #include <unistd.h>
+#include "rbTree.h"
 
 #define G (size_t)(1 << 30)
 #define M (size_t)(1 << 20)
@@ -18,7 +19,7 @@ typedef struct Block {
 
 typedef struct MemPool {
     Block *freeList[CHUNKNUM];
-    Block *usedList;
+    RBRoot *usedTree;
     size_t memCount;  // 内存总分配量
     size_t usageCount;  // 实际内存使用量
 }MemPool;

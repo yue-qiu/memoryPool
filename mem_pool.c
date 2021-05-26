@@ -1,5 +1,7 @@
-#include "mem_pool.h"
 #include <malloc.h>
+#include "mem_pool.h"
+#include "rbTree.h"
+
 
 #define GET_BLOCKSIZE(i) (size_t)(1 << ((i) + 1))
 
@@ -9,7 +11,7 @@
 MemPool* NewMemPool(size_t);
 void* Malloc(MemPool*, size_t);
 void Free(MemPool*, void* ptr);
-void moveToUsedList(MemPool*, Block*, int);
+void moveToUsedTree(MemPool*, Block*, int);
 void moveToFreeList(MemPool*, Block*);
 double Usage(MemPool*);
 
@@ -23,7 +25,7 @@ MemPool* NewMemPool(size_t size) {
     
     MemPool *mp = (MemPool*)malloc(sizeof(MemPool));
     mp->memCount = adjust_size;
-    mp->usedList = NULL;
+    mp->usedTree = create_rbtree();
     mp->usageCount = 0;
 
     // 初始化 freeList
@@ -60,7 +62,7 @@ void* Malloc(MemPool *mp, size_t size) {
         tmp = mp->freeList[CHUNKNUM-1];
         while (tmp != NULL) {
             if (size <= tmp->blockSize) {  // 找到大小合适的块
-                moveToUsedList(mp, tmp, CHUNKNUM-1);
+                moveToUsedTree(mp, tmp, CHUNKNUM-1);
                 tmp->dataSize = size;
 
                 return (void*)tmp->payload;
@@ -75,7 +77,7 @@ void* Malloc(MemPool *mp, size_t size) {
         tmp->dataSize = size;
         tmp->prev = NULL;
         tmp->next = NULL;
-        moveToUsedList(mp, tmp, -1);
+        moveToUsedTree(mp, tmp, -1);
         mp->memCount += tmp->blockSize;
 
         return (void*)tmp->payload;
@@ -124,7 +126,7 @@ void* Malloc(MemPool *mp, size_t size) {
             }
 
             if (tmp != NULL) {  
-                moveToUsedList(mp, tmp, i);
+                moveToUsedTree(mp, tmp, i);
                 tmp->dataSize = size;
 
                 return (void*)tmp->payload;
@@ -139,7 +141,7 @@ void* Malloc(MemPool *mp, size_t size) {
             tmp->dataSize = size;
             tmp->prev = NULL;
             tmp->next = NULL;
-            moveToUsedList(mp, tmp, -1);
+            moveToUsedTree(mp, tmp, -1);
             mp->memCount += tmp->blockSize;
 
             return (void*)tmp->payload;
@@ -150,21 +152,17 @@ void* Malloc(MemPool *mp, size_t size) {
 }
 
 void Free(MemPool *mp, void* ptr) {
-    Block* tmp = mp->usedList;
-    while (tmp != NULL) {
-        Block* tmpNext = tmp->next;
-        if (tmp->payload == ptr) {
-            mp->usageCount -= tmp->dataSize;
-            moveToFreeList(mp, tmp);
-        }
-        tmp = tmpNext;
+    Node* node =  delete_rbtree(mp->usedTree, ptr);
+    if (node != NULL) {
+        moveToFreeList(mp, (Block*)node->value);
+        free(node);
     }
 }
 
 /*
 * 把 block 移动到 usedList。如果 block 是 freeList[i] 的首节点，还要修改 freeList[i] 
 **/
-void moveToUsedList(MemPool *mp, Block *block, int freeListIdx) {
+void moveToUsedTree(MemPool *mp, Block *block, int freeListIdx) {
     if (freeListIdx >= 0 && block == mp->freeList[freeListIdx]) {
         mp->freeList[freeListIdx] = mp->freeList[freeListIdx]->next;
     }
@@ -177,32 +175,14 @@ void moveToUsedList(MemPool *mp, Block *block, int freeListIdx) {
     block->prev = NULL;
     block->next = NULL;
 
-    if (mp->usedList == NULL) {
-        mp->usedList = block;
-    } else {
-        block->next = mp->usedList;
-        mp->usedList->prev = block;
-        mp->usedList = block;
-    }
+    insert_rbtree(mp->usedTree, block->payload, block);
 }
 
 
 /*
-*  把 usedList 的 block 移动到 freeList
+*  把 block 移动到 freeList
 **/
 void moveToFreeList(MemPool *mp, Block *block) {
-    if (block == mp->usedList) {
-        mp->usedList = mp->usedList->next;
-    }
-    if (block->prev != NULL) {
-        block->prev->next = block->next;
-    }
-    if (block->next != NULL) {
-        block->next->prev = block->prev;
-    }
-    block->prev = NULL;
-    block->next = NULL;
-
     int i = CHUNKNUM-1;
     if (block->blockSize <= MAX_FIXED_BLOCK_SIZE) {
         i = 0;
