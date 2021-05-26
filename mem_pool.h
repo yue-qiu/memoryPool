@@ -6,30 +6,26 @@
 #define M (size_t)(1 << 20)
 #define K (size_t)(1 << 10)
 
-static const int CHUNKNUM = 21;
+#define CHUNKNUM 21
 
-class MemPool {
-    private:
-        struct Block {
-            Block* prev;
-            Block* next;
-            size_t blockSize;  // 块大小
-            size_t dataSize;  // 块保存的内容的大小
-            char* payload;
-        };
-        Block* freeList[CHUNKNUM];
-        Block* usedList;
-        void moveToUsedList(Block*, int);
-        void moveToFreeList(Block*);
-        size_t memCount;  // 内存总分配量
-        size_t usageCount;  // 实际内存使用量
+typedef struct Block {
+    struct Block* prev;
+    struct Block* next;
+    char* payload;
+    size_t blockSize;
+    size_t dataSize;
+}Block;
 
-    public:
-        MemPool(size_t);
-        void* Malloc(size_t);
-        void Free(void*);
-        double Usage();
-        ~MemPool();
-};
+typedef struct MemPool {
+    Block *freeList[CHUNKNUM];
+    Block *usedList;
+    size_t memCount;  // 内存总分配量
+    size_t usageCount;  // 实际内存使用量
+}MemPool;
+
+MemPool* NewMemPool(size_t size);
+void* Malloc(MemPool *mp, size_t size);
+void Free(MemPool *mp, void* ptr);
+double Usage(MemPool *mp);
 
 

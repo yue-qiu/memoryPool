@@ -1,16 +1,15 @@
+#include <time.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 #include "mem_pool.h"
-#include <iostream>
-#include <ctime>
-#include <cstdlib>
-#include <cstring>
+
 
 #define random(x) (rand() % (x))
 
 #define TESTCASE (2 * K)
 
 #define MAXDATASIZE ((3 * M) >> 1) 
-
-using namespace std;
 
 // 洗牌算法打乱数组
 void shuffle(void* mem[TESTCASE]) {
@@ -23,20 +22,20 @@ void shuffle(void* mem[TESTCASE]) {
 }
 
 void test_pool() {
-    MemPool* pool = new MemPool(3 * G);
+    MemPool* pool = NewMemPool(2 * G);
     void* mem[TESTCASE];
     clock_t startTime, endTime;
     startTime = clock();  //计时开始
 
     for (size_t i = 0; i < TESTCASE; i++) {
-        mem[i] = pool->Malloc(random(MAXDATASIZE));
+        mem[i] = Malloc(pool, random(MAXDATASIZE));
     }
 
-    fprintf(stdout, "Usage: %.2f\n", pool->Usage());
+    fprintf(stdout, "Usage: %.2f\n", Usage(pool));
 
     shuffle(mem); // 模拟随机释放内存
     for (size_t i = 0; i < TESTCASE; i++) {
-        pool->Free(mem[i]);
+        Free(pool, mem[i]);
     }
 
     endTime = clock();  //计时结束
