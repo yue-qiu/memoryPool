@@ -22,7 +22,15 @@ $ ./test_mem_pool -test=pool    # 测试内存池的 Malloc 与 Free
 
 定义`利用率(Usage) = 总请求字节数 / 总缓存字节数`表征池子里可用内存的数量。内存池以块（block）的形式组织，会产生一定的“内存浪费”，即不是所有被缓存起来的内存都可以用于响应请求，因此**利用率永远小于 1**。
 
-创建一个初始容量为 2G 的内存池，与原生 malloc/free 比较：
+创建一个初始容量为 2G 的内存池，与原生 malloc/free 比较。
+
+CPU: Intel(R) Core(TM) i5-7300HQ CPU @ 2.50GHz
+
+RAM: 16G
+
+GCC version: 9.3.0
+
+OS: Ubuntu 20.04 LTS
 
 | Number of testcases | max request size | 内存池响应时间(ms) | malloc/free 响应时间(ms) | Usage |
 |  ----  | ----  | ---- | ---- | ---- |
@@ -34,6 +42,7 @@ $ ./test_mem_pool -test=pool    # 测试内存池的 Malloc 与 Free
 | 64k | 512k | 382.90 | 660.68 | 0.75 |
 | 8k | 1.5M |  22.91 | 82.55 | 0.84 |
 | 32k | 1.5M | 148.39 | 321.98 | 0.87 |
+| 64k | 1.5M | 382.98 | 845.88 | 0.87 |
 
 ## 接口列表
 

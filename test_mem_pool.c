@@ -7,9 +7,9 @@
 
 #define random(x) (rand() % (x))
 
-#define TESTCASESNUM (64 * K)
+#define TESTCASESNUM (32 * K)
 
-#define MAXDATASIZE (512 * K) 
+#define MAXDATASIZE ((3 * M) >> 1) 
 
 #define PER_MILLISECOND 1000
 
@@ -69,7 +69,7 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    fprintf(stdout, "testcase: %ld, max request size: %ld Bytes\n", TESTCASESNUM, MAXDATASIZE);
+    fprintf(stdout, "testcase: %lu, max request size: %lu Bytes\n", TESTCASESNUM, MAXDATASIZE);
     srand((int)time(0));
 
     if (strcmp(argv[1], "-test=pool") == 0) {
