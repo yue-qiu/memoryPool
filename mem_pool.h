@@ -22,11 +22,14 @@ typedef struct MemPool {
     RBRoot *usedTree;
     size_t memCount;  // 内存总分配量
     size_t usageCount;  // 实际内存使用量
+    Node *oldRBNodeList;  // 以 node->right 为 next 指针，node->parent 为 prev 指针
+    Block *oldBlockList;
 }MemPool;
 
 MemPool* NewMemPool(size_t size);
 void* Malloc(MemPool *mp, size_t size);
 void Free(MemPool *mp, void* ptr);
 double Usage(MemPool *mp);
+void Destroy(MemPool *mp);
 
 

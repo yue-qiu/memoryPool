@@ -27,7 +27,7 @@ RBRoot* create_rbtree();
 void destroy_rbtree(RBRoot *root);
 
 // 将结点插入到红黑树中。插入成功，返回0；失败返回-1。
-int insert_rbtree(RBRoot *root, Type key, void *val);
+int insert_rbtree(RBRoot *root, Type key, void *val, Node *oldNode);
 
 // 删除结点(key为节点的值)
 Node* delete_rbtree(RBRoot *root, Type key);

@@ -279,12 +279,17 @@ static void rbtree_insert(RBRoot *root, Node *node)
  *     left 是左孩子。
  *     right 是右孩子。
  */
-static Node* create_rbtree_node(Type key, void *val, Node *parent, Node *left, Node* right)
+static Node* create_rbtree_node(Type key, void *val, Node *parent, Node *left, Node *right, Node *oldNode)
 {
     Node* p;
 
-    if ((p = (Node *)malloc(sizeof(Node))) == NULL)
-        return NULL;
+    if (oldNode != NULL) {
+        p = oldNode;
+    } else {
+        if ((p = (Node *)malloc(sizeof(Node))) == NULL)
+            return NULL;
+    }
+
     p->key = key;
     p->value = val;
     p->left = left;
@@ -305,7 +310,7 @@ static Node* create_rbtree_node(Type key, void *val, Node *parent, Node *left, N
  *     0，插入成功
  *     -1，插入失败
  */
-int insert_rbtree(RBRoot *root, Type key, void *val)
+int insert_rbtree(RBRoot *root, Type key, void *val, Node *oldNode)
 {
     Node *node;    // 新建结点
 
@@ -315,7 +320,7 @@ int insert_rbtree(RBRoot *root, Type key, void *val)
         return -1;
 
     // 如果新建结点失败，则返回。
-    if ((node=create_rbtree_node(key, val, NULL, NULL, NULL)) == NULL)
+    if ((node=create_rbtree_node(key, val, NULL, NULL, NULL, oldNode)) == NULL)
         return -1;
 
     rbtree_insert(root, node);

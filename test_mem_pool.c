@@ -7,9 +7,11 @@
 
 #define random(x) (rand() % (x))
 
-#define TESTCASESNUM (8 * K)
+#define TESTCASESNUM (64 * K)
 
 #define MAXDATASIZE (512 * K) 
+
+#define PER_MILLISECOND 1000
 
 // 洗牌算法打乱数组
 void shuffle(void* mem[TESTCASESNUM]) {
@@ -39,7 +41,8 @@ void test_pool() {
     }
 
     endTime = clock();  //计时结束
-    fprintf(stdout, "The run time with malloc is: %fs\n", (double)(endTime - startTime) / CLOCKS_PER_SEC);  
+    fprintf(stdout, "The run time with malloc is: %.2f ms\n", (double)(endTime - startTime) / PER_MILLISECOND);  
+    Destroy(pool);
 }
 
 void test_malloc() {
@@ -57,7 +60,7 @@ void test_malloc() {
     }
 
     endTime = clock();  //计时结束
-    fprintf(stdout, "The run time with malloc is: %fs\n", (double)(endTime - startTime) / CLOCKS_PER_SEC);  
+    fprintf(stdout, "The run time with malloc is: %.2f ms\n", (double)(endTime - startTime) / PER_MILLISECOND);  
 }
 
 int main(int argc, char** argv) {
