@@ -1,4 +1,5 @@
 #include <malloc.h>
+#include <pthread.h>
 #include "mem_pool.h"
 #include "rbTree.h"
 
@@ -14,6 +15,12 @@ void Free(MemPool*, void* ptr);
 void moveToUsedTree(MemPool*, Block*, int);
 void moveToFreeList(MemPool*, Block*);
 double Usage(MemPool*);
+
+#ifdef _THREAD_SAFE_
+    pthread_mutex_t mtx;
+#endif
+
+
 
 static Block* NewBlock(MemPool *mp, Block *prev, Block *next, char *payload, size_t blockSize, size_t dataSize) {
     Block *block;
@@ -59,134 +66,6 @@ static void moveToOldRBNodeList(MemPool *mp, Node *node) {
         mp->oldRBNodeList->parent = node;
     }
     mp->oldRBNodeList = node;
-}
-
-MemPool* NewMemPool(size_t size) {
-    unsigned long adjust_size = MIN_CACHE_SIZE;
-    unsigned long initBlockNum = (size + MIN_CACHE_SIZE - 1) / MIN_CACHE_SIZE;
-    if (size > MIN_CACHE_SIZE) {
-        adjust_size = MIN_CACHE_SIZE * initBlockNum;
-    }
-    char* mem = (char*)malloc(adjust_size);  // 申请并缓存一大片内存，大小为 size 向上舍入到最近的 MIN_CHACHE_SIZE 整数倍
-    
-    MemPool *mp = (MemPool*)malloc(sizeof(MemPool));
-    mp->memCount = adjust_size;
-    mp->usedTree = create_rbtree();
-    mp->usageCount = 0;
-    mp->oldRBNodeList = NULL;
-    mp->oldBlockList = NULL;
-
-    // 初始化 freeList
-    for (int i = 0; i < CHUNKNUM-1; i++) {
-        for (unsigned long j = 0; j < initBlockNum; j++) {
-            Block *block = NewBlock(mp, NULL, NULL, mem, GET_BLOCKSIZE(i), 0);
-            if (mp->freeList[i] != NULL) {
-                block->next = mp->freeList[i];
-                mp->freeList[i]->prev = block;
-            }
-            mp->freeList[i] = block;
-            mem += GET_BLOCKSIZE(i);
-        }
-    }
-
-    return mp;
-}
-
-void* Malloc(MemPool *mp, size_t size) {
-    Block* tmp;
-
-    mp->usageCount += size;
-
-    if (size > MAX_FIXED_BLOCK_SIZE) {  // 请求大于最大固定块，在 freeList[CHUNKNUM] 里查找
-        tmp = mp->freeList[CHUNKNUM-1];
-        while (tmp != NULL) {
-            if (size <= tmp->blockSize) {  // 找到大小合适的块
-                moveToUsedTree(mp, tmp, CHUNKNUM-1);
-                tmp->dataSize = size;
-
-                return (void*)tmp->payload;
-            }
-
-            tmp = tmp->next;
-        }
-        
-        // 得到一个自由大小块
-        tmp = NewBlock(mp, NULL, NULL, (char*)malloc(size), size, size);
-        moveToUsedTree(mp, tmp, -1);
-        mp->memCount += tmp->blockSize;
-
-        return (void*)tmp->payload;
-    }
-
-    // 从固定空闲块里查找
-    for (int i = 0; i < CHUNKNUM-1; i++) {
-        if (size <= GET_BLOCKSIZE(i)) { // 最小的符合请求的空闲固定块
-            tmp = mp->freeList[i];
-
-            // 当前大小的空闲固定块耗尽，尝试从更大的空闲固定块里窃取空间
-            if (tmp == NULL) {
-                for (int j = CHUNKNUM-2; j > i; j--) {  // 向右查找最远的非空 freeList
-                    if (mp->freeList[j] != NULL) { 
-                        int newBlockNum = GET_BLOCKSIZE(j) / GET_BLOCKSIZE(i);  // 确定这次窃取可以为 freeList[i] 得到几个新的固定空闲块
-
-                        for (int k = 0; k < newBlockNum; k++) {
-                            // 得到一个块大小为 GET_BLOCKSIZE(i) 的固定块
-                            Block *block = NewBlock(mp, NULL, NULL, mp->freeList[j]->payload + k * GET_BLOCKSIZE(i), GET_BLOCKSIZE(i), 0);
-                            // 插入到 freeList[i] 头部
-                            if (mp->freeList[i] != NULL) {
-                                block->next = mp->freeList[i];
-                                mp->freeList[i]->prev = block;
-                            } 
-                            mp->freeList[i] = block;
-                        }
-
-                        // 被窃取的 freeList[j] 首结点放入 oldBlockList
-                        Block *oldNode = mp->freeList[j];
-                        mp->freeList[j] = mp->freeList[j]->next;
-                        if (mp->freeList[j] != NULL) {
-                            mp->freeList[j]->prev = NULL;
-                        }
-                        initBlock(oldNode, NULL, NULL, (char*)0, 0, 0);
-                        moveToOldNodeList(mp, oldNode);
-
-                        // 现在 freeList[i] 非空了
-                        tmp = mp->freeList[i];
-                        break;
-                    }
-                }
-            }
-
-            if (tmp != NULL) {  
-                moveToUsedTree(mp, tmp, i);
-                tmp->dataSize = size;
-
-                return (void*)tmp->payload;
-            }
-
-            // 得到一个固定块
-            tmp = NewBlock(mp, NULL, NULL, (char*)malloc(GET_BLOCKSIZE(i)), GET_BLOCKSIZE(i), size);
-            moveToUsedTree(mp, tmp, -1);
-            mp->memCount += tmp->blockSize;
-
-            return (void*)tmp->payload;
-        }
-    }
-
-    return NULL;
-}
-
-void Free(MemPool *mp, void* ptr) {
-    Node* node =  delete_rbtree(mp->usedTree, ptr);
-    if (node != NULL) {
-        moveToFreeList(mp, (Block*)node->value);
-        node->color = BLACK;
-        node->key = NULL;
-        node->value = NULL;
-        node->parent = NULL;
-        node->left = NULL;
-        node->right = NULL;
-        moveToOldRBNodeList(mp, node);
-    }
 }
 
 /*
@@ -236,11 +115,178 @@ void moveToFreeList(MemPool *mp, Block *block) {
     mp->freeList[i] = block;
 }
 
+MemPool* NewMemPool(size_t size) {
+    unsigned long adjust_size = MIN_CACHE_SIZE;
+    unsigned long initBlockNum = (size + MIN_CACHE_SIZE - 1) / MIN_CACHE_SIZE;
+    if (size > MIN_CACHE_SIZE) {
+        adjust_size = MIN_CACHE_SIZE * initBlockNum;
+    }
+    char* mem = (char*)malloc(adjust_size);  // 申请并缓存一大片内存，大小为 size 向上舍入到最近的 MIN_CHACHE_SIZE 整数倍
+    
+    MemPool *mp = (MemPool*)malloc(sizeof(MemPool));
+    mp->memCount = adjust_size;
+    mp->usedTree = create_rbtree();
+    mp->usageCount = 0;
+    mp->oldRBNodeList = NULL;
+    mp->oldBlockList = NULL;
+
+    // 初始化 freeList
+    for (int i = 0; i < CHUNKNUM-1; i++) {
+        for (unsigned long j = 0; j < initBlockNum; j++) {
+            Block *block = NewBlock(mp, NULL, NULL, mem, GET_BLOCKSIZE(i), 0);
+            if (mp->freeList[i] != NULL) {
+                block->next = mp->freeList[i];
+                mp->freeList[i]->prev = block;
+            }
+            mp->freeList[i] = block;
+            mem += GET_BLOCKSIZE(i);
+        }
+    }
+
+    #ifdef _THREAD_SAFE_
+        pthread_mutex_init(&mtx, NULL);
+    #endif
+
+    return mp;
+}
+
+void* Malloc(MemPool *mp, size_t size) {
+    Block* tmp;
+
+    #ifdef _THREAD_SAFE_
+        pthread_mutex_lock(&mtx);
+    #endif
+
+    mp->usageCount += size;
+
+    if (size > MAX_FIXED_BLOCK_SIZE) {  // 请求大于最大固定块，在 freeList[CHUNKNUM] 里查找
+        tmp = mp->freeList[CHUNKNUM-1];
+        while (tmp != NULL) {
+            if (size <= tmp->blockSize) {  // 找到大小合适的块
+                moveToUsedTree(mp, tmp, CHUNKNUM-1);
+                tmp->dataSize = size;
+
+                return (void*)tmp->payload;
+            }
+
+            tmp = tmp->next;
+        }
+        
+        // 得到一个自由大小块
+        tmp = NewBlock(mp, NULL, NULL, (char*)malloc(size), size, size);
+        moveToUsedTree(mp, tmp, -1);
+        mp->memCount += tmp->blockSize;
+
+        #ifdef _THREAD_SAFE_
+            pthread_mutex_unlock(&mtx);
+        #endif
+
+        return (void*)tmp->payload;
+    }
+
+    // 从固定空闲块里查找
+    for (int i = 0; i < CHUNKNUM-1; i++) {
+        if (size <= GET_BLOCKSIZE(i)) { // 最小的符合请求的空闲固定块
+            tmp = mp->freeList[i];
+
+            // 当前大小的空闲固定块耗尽，尝试从更大的空闲固定块里窃取空间
+            if (tmp == NULL) {
+                for (int j = CHUNKNUM-2; j > i; j--) {  // 向右查找最远的非空 freeList
+                    if (mp->freeList[j] != NULL) { 
+                        int newBlockNum = GET_BLOCKSIZE(j) / GET_BLOCKSIZE(i);  // 确定这次窃取可以为 freeList[i] 得到几个新的固定空闲块
+
+                        for (int k = 0; k < newBlockNum; k++) {
+                            // 得到一个块大小为 GET_BLOCKSIZE(i) 的固定块
+                            Block *block = NewBlock(mp, NULL, NULL, mp->freeList[j]->payload + k * GET_BLOCKSIZE(i), GET_BLOCKSIZE(i), 0);
+                            // 插入到 freeList[i] 头部
+                            if (mp->freeList[i] != NULL) {
+                                block->next = mp->freeList[i];
+                                mp->freeList[i]->prev = block;
+                            } 
+                            mp->freeList[i] = block;
+                        }
+
+                        // 被窃取的 freeList[j] 首结点放入 oldBlockList
+                        Block *oldNode = mp->freeList[j];
+                        mp->freeList[j] = mp->freeList[j]->next;
+                        if (mp->freeList[j] != NULL) {
+                            mp->freeList[j]->prev = NULL;
+                        }
+                        initBlock(oldNode, NULL, NULL, (char*)0, 0, 0);
+                        moveToOldNodeList(mp, oldNode);
+
+                        // 现在 freeList[i] 非空了
+                        tmp = mp->freeList[i];
+                        break;
+                    }
+                }
+            }
+
+            if (tmp != NULL) {  
+                moveToUsedTree(mp, tmp, i);
+                tmp->dataSize = size;
+            } else { // 得到一个固定块
+                tmp = NewBlock(mp, NULL, NULL, (char*)malloc(GET_BLOCKSIZE(i)), GET_BLOCKSIZE(i), size);
+                moveToUsedTree(mp, tmp, -1);
+                mp->memCount += tmp->blockSize;
+            }
+
+            #ifdef _THREAD_SAFE_
+                pthread_mutex_unlock(&mtx);
+            #endif
+
+            return (void*)tmp->payload;
+        }
+    }
+
+    #ifdef _THREAD_SAFE_
+        pthread_mutex_unlock(&mtx);
+    #endif
+
+    return NULL;
+}
+
+void Free(MemPool *mp, void* ptr) {
+    #ifdef _THREAD_SAFE_
+        pthread_mutex_lock(&mtx);
+    #endif
+
+    Node* node =  delete_rbtree(mp->usedTree, ptr);
+    if (node != NULL) {
+        moveToFreeList(mp, (Block*)node->value);
+        node->color = BLACK;
+        node->key = NULL;
+        node->value = NULL;
+        node->parent = NULL;
+        node->left = NULL;
+        node->right = NULL;
+        moveToOldRBNodeList(mp, node);
+    }
+
+    #ifdef _THREAD_SAFE_
+        pthread_mutex_unlock(&mtx);
+    #endif
+}
+
 double Usage(MemPool* mp) {
-    return (double)mp->usageCount / mp->memCount;
+    #ifdef _THREAD_SAFE_
+        pthread_mutex_lock(&mtx);
+    #endif
+
+    double res = (double)mp->usageCount / mp->memCount;
+
+    #ifdef _THREAD_SAFE_
+        pthread_mutex_unlock(&mtx);
+    #endif
+
+    return res;
 }
 
 void Destroy(MemPool *mp) {
+    #ifdef _THREAD_SAFE_
+        pthread_mutex_lock(&mtx);
+    #endif
+
     Block *block = mp->oldBlockList;
     Block *block_next = NULL;
     while (block != NULL) {
@@ -269,4 +315,8 @@ void Destroy(MemPool *mp) {
     destroy_rbtree(mp->usedTree);
     
     free(mp);
+
+    #ifdef _THREAD_SAFE_
+        pthread_mutex_unlock(&mtx);
+    #endif
 }

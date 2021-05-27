@@ -9,7 +9,7 @@
 
 #define TESTCASESNUM (32 * K)
 
-#define MAXDATASIZE ((3 * M) >> 1) 
+#define MAXREQSIZE ((3 * M) >> 1) 
 
 #define PER_MILLISECOND 1000
 
@@ -30,7 +30,7 @@ void test_pool() {
     startTime = clock();  //计时开始
 
     for (size_t i = 0; i < TESTCASESNUM; i++) {
-        mem[i] = Malloc(pool, random(MAXDATASIZE));
+        mem[i] = Malloc(pool, random(MAXREQSIZE));
     }
 
     fprintf(stdout, "Usage: %.2f\n", Usage(pool));
@@ -51,7 +51,7 @@ void test_malloc() {
     startTime = clock();  //计时开始
 
     for (size_t i = 0; i < TESTCASESNUM; i++) {
-        mem[i] = malloc(random(MAXDATASIZE));
+        mem[i] = malloc(random(MAXREQSIZE));
     }
 
     shuffle(mem);   // 模拟随机释放内存
@@ -69,7 +69,7 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    fprintf(stdout, "testcase: %lu, max request size: %lu Bytes\n", TESTCASESNUM, MAXDATASIZE);
+    fprintf(stdout, "testcase: %lu, max request size: %lu Bytes\n", TESTCASESNUM, MAXREQSIZE);
     srand((int)time(0));
 
     if (strcmp(argv[1], "-test=pool") == 0) {

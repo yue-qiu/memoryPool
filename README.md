@@ -6,15 +6,20 @@
 
 `MemPool` 提供两个接口 `Malloc()` 与 `Free()`，表现与系统调用 `malloc()` 和 `free()` 一致。
 
-提供一个测试实例 `test_mem_pool.cpp`，执行如下命令查看测试结果：
+提供一个测试实例 `test_mem_pool.cpp`，使用如下命令进行测试：
 
 ```shell
-$ make
+$ make  # 编译无锁版本
+$ make thread_safe  # 编译线程安全版本
 $ ./test_mem_pool -test=malloc  # 测试原生 malloc 与 free
 $ ./test_mem_pool -test=pool    # 测试内存池的 Malloc 与 Free
 ```
 
+修改 `test_mem_pool.cpp` 里面的 `TESTCASESNUM` 和 `MAXDATASIZE` 两个变量可以自定义测试用例数量与最大请求字节数。
+
 预定义宏：`K`，`M`，`G`。
+
+如果需要确保线程安全，在编译的时候定义宏 `_THREAD_SAFE_`。
 
 **你不该期望从内存池里获取的地址一定是连续的！**
 
@@ -41,7 +46,7 @@ OS: Ubuntu 20.04 LTS
 | 32k | 512k | 136.50 | 271.14 | 0.75 |
 | 64k | 512k | 382.90 | 660.68 | 0.75 |
 | 8k | 1.5M |  22.91 | 82.55 | 0.84 |
-| 32k | 1.5M | 148.39 | 321.98 | 0.87 |
+| 32k | 1.5M | 137.27 | 321.98 | 0.87 |
 | 64k | 1.5M | 382.98 | 845.88 | 0.87 |
 
 ## 接口列表
@@ -58,6 +63,6 @@ void Destroy(MemPool *mp);  // 销毁内存池
 
 - ~~用红黑树保存非空闲块，提高 `Free()` 执行效率~~
 - ~~提供内存池销毁方法~~
-- 保证线程安全
+- ~~保证线程安全~~
 
 
